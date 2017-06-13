@@ -89,3 +89,8 @@ LOCK
 LOG*
 CURRENT
 MANIFEST-*
+
+# Atom .tags files
+.tags
+.tags_swap
+.tags1
