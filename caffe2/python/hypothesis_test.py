@@ -26,6 +26,7 @@ def _tensor_and_prefix(draw, dtype, elements, min_dim=1, max_dim=4, **kwargs):
         st.lists(hu.dims(**kwargs), min_size=min_dim, max_size=max_dim))
     extra_ = draw(
         st.lists(hu.dims(**kwargs), min_size=min_dim, max_size=max_dim))
+    assume(len(dims_) + len(extra_) < max_dim)
     return (draw(hu.arrays(dims_ + extra_, dtype, elements)),
             draw(hu.arrays(extra_, dtype, elements)))
 
@@ -310,7 +311,7 @@ class TestOperators(hu.HypothesisTestCase):
                      "Skipping test due to no gpu present.")
     @given(hidden_size=st.integers(min_value=1, max_value=3),
            num_layers=st.integers(min_value=1, max_value=3),
-           bidirectional=st.booleans(),
+           bidirectional=st.just(False),  # TODO
            rnn_mode=st.sampled_from(["lstm"]),   # TODO: "gru"
            input_mode=st.sampled_from(["linear"]),
            dropout=st.floats(min_value=1.0, max_value=1.0),
@@ -325,12 +326,17 @@ class TestOperators(hu.HypothesisTestCase):
         np.random.seed(seed)
 
         input_weight_size = hidden_size * D
+        upper_layer_input_weight_size = hidden_size * hidden_size
         recurrent_weight_size = hidden_size * hidden_size
         input_bias_size = hidden_size
         recurrent_bias_size = hidden_size
         num_directions = 2 if bidirectional else 1
-        total_sz = 4 * (input_weight_size + recurrent_weight_size +
-                        input_bias_size + recurrent_bias_size) * num_layers
+        first_layer_sz = input_weight_size + recurrent_weight_size + \
+                         input_bias_size + recurrent_bias_size
+        upper_layer_sz = upper_layer_input_weight_size + \
+                         recurrent_weight_size + input_bias_size + \
+                         recurrent_bias_size
+        total_sz = 4 * (first_layer_sz + (num_layers - 1) * upper_layer_sz)
         total_sz *= num_directions
 
         W = np.random.rand(total_sz).astype(np.float32)
@@ -365,7 +371,8 @@ class TestOperators(hu.HypothesisTestCase):
 
         for input_idx in input_idxs:
             self.assertGradientChecks(
-                hu.gpu_do, op, inputs, input_idx, [0])
+                hu.gpu_do, op, inputs, input_idx, [0],
+                stepsize=0.01, threshold=0.01)
 
     @given(ndim=st.integers(1, 4),
            axis=st.integers(0, 3),
@@ -805,10 +812,11 @@ class TestOperators(hu.HypothesisTestCase):
             N = prediction.shape[0]
             correct = 0
             for i in range(0, len(prediction)):
-                # we no longer have cmp function in python 3
-                pred_sorted = sorted([
-                    [item, j] for j, item in enumerate(prediction[i])],
-                    cmp=lambda x, y: int(y[0] > x[0]) - int(y[0] < x[0]))
+                pred_sorted = sorted(
+                    ([item, j] for j, item in enumerate(prediction[i])),
+                    key=lambda x: x[0],
+                    reverse=True
+                )
                 max_ids = [x[1] for x in pred_sorted[0:top_k]]
                 for m in max_ids:
                     if m == labels[i]:
@@ -882,7 +890,7 @@ class TestOperators(hu.HypothesisTestCase):
         def op_ref(lengths):
             sids = []
             for _, l in enumerate(lengths):
-                sids.extend(range(l))
+                sids.extend(list(range(l)))
             return (np.array(sids, dtype=np.int32), )
 
         self.assertReferenceChecks(
@@ -1115,7 +1123,11 @@ class TestOperators(hu.HypothesisTestCase):
           original matrices.
         """
         import threading
-        import Queue
+        try:
+            import queue
+        except ImportError:
+            # Py3
+            import Queue as queue
         op = core.CreateOperator(
             "CreateBlobsQueue",
             [],
@@ -1127,7 +1139,7 @@ class TestOperators(hu.HypothesisTestCase):
 
         xs = [np.random.randn(num_elements, 5).astype(np.float32)
               for _ in range(num_blobs)]
-        q = Queue.Queue()
+        q = queue.Queue()
         for i in range(num_elements):
             q.put([x[i] for x in xs])
 
@@ -1145,7 +1157,7 @@ class TestOperators(hu.HypothesisTestCase):
                         self.ws.create_blob(feed_blob).feed(
                             elem, device_option=do)
                     self.ws.run(op)
-                except Queue.Empty:
+                except queue.Empty:
                     return
 
         # Create all blobs before racing on multiple threads
@@ -1422,8 +1434,9 @@ class TestOperators(hu.HypothesisTestCase):
                (["async_dag"] if workspace.has_gpu_support else [])),
            do=st.sampled_from(hu.device_options))
     def test_dag_net_forking(self, net_type, num_workers, do):
-        from caffe2.python.cnn import CNNModelHelper
-        m = CNNModelHelper()
+        from caffe2.python.model_helper import ModelHelper
+        from caffe2.python import brew
+        m = ModelHelper(name="test_model")
         n = 10
         d = 2
         depth = 2
@@ -1437,16 +1450,18 @@ class TestOperators(hu.HypothesisTestCase):
                 mid_1 = "{}_{}_m".format(i + 1, 2 * j)
                 mid_2 = "{}_{}_m".format(i + 1, 2 * j + 1)
                 top = "{}_{}".format(i, j)
-                m.FC(
+                brew.fc(
+                    m,
                     bottom_1, mid_1,
                     dim_in=d, dim_out=d,
-                    weight_init=m.ConstantInit(np.random.randn()),
-                    bias_init=m.ConstantInit(np.random.randn()))
-                m.FC(
+                    weight_init=('ConstantFill', dict(value=np.random.randn())),
+                    bias_init=('ConstantFill', dict(value=np.random.randn())))
+                brew.fc(
+                    m,
                     bottom_2, mid_2,
                     dim_in=d, dim_out=d,
-                    weight_init=m.ConstantInit(np.random.randn()),
-                    bias_init=m.ConstantInit(np.random.randn()))
+                    weight_init=('ConstantFill', dict(value=np.random.randn())),
+                    bias_init=('ConstantFill', dict(value=np.random.randn())))
                 m.net.Sum([mid_1, mid_2], top)
         m.net.SquaredL2Distance(["0_0", "label"], "xent")
         m.net.AveragedLoss("xent", "loss")
@@ -1769,16 +1784,17 @@ class TestOperators(hu.HypothesisTestCase):
            n=st.integers(1, 5),
            d=st.integers(1, 5))
     def test_elman_recurrent_network(self, t, n, d):
-        from caffe2.python import cnn
+        from caffe2.python import model_helper, brew
         np.random.seed(1701)
-        step_net = cnn.CNNModelHelper(name="Elman")
+        step_net = model_helper.ModelHelper(name="Elman")
         # TODO: name scope external inputs and outputs
         step_net.Proto().external_input.extend(
             ["input_t", "seq_lengths", "timestep",
              "hidden_t_prev", "gates_t_w", "gates_t_b"])
         step_net.Proto().type = "simple"
         step_net.Proto().external_output.extend(["hidden_t", "gates_t"])
-        step_net.FC("hidden_t_prev", "gates_t", dim_in=d, dim_out=d, axis=2)
+        brew.fc(step_net,
+                "hidden_t_prev", "gates_t", dim_in=d, dim_out=d, axis=2)
         step_net.net.Sum(["gates_t", "input_t"], ["gates_t"])
         step_net.net.Sigmoid(["gates_t"], ["hidden_t"])
 
@@ -1829,7 +1845,7 @@ class TestOperators(hu.HypothesisTestCase):
             backward_link_internal=backward_link_internal,
             backward_link_external=backward_link_external,
             backward_link_offset=backward_link_offset,
-            param=map(inputs.index, step_net.params),
+            param=[inputs.index(p) for p in step_net.params],
             step_net=str(step_net.Proto()),
             backward_step_net=str(backward_step_net.Proto()),
             outputs_with_grads=[0],
@@ -1907,8 +1923,8 @@ class TestOperators(hu.HypothesisTestCase):
         X = np.random.randn(
             n * block_size * block_size,
             c,
-            (h + 2 * pad) / block_size,
-            (w + 2 * pad) / block_size).astype(np.float32)
+            (h + 2 * pad) // block_size,
+            (w + 2 * pad) // block_size).astype(np.float32)
         op = core.CreateOperator("BatchToSpace", ["X"], ["Y"],
                                  pad=pad, block_size=block_size)
         self.assertDeviceChecks(dc, op, [X], [0])
