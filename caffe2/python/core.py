@@ -7,22 +7,16 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from collections import namedtuple, OrderedDict
-try:
-    from past.builtins import basestring
-except ImportError:
-    print("You don't have the past package installed. ",
-          "This is necessary for python 2/3 compatibility. ",
-          "To do this, do 'pip install future'.")
-    import sys
-    sys.exit(1)
+from past.builtins import basestring
+from six import binary_type, string_types, text_type
 
 from caffe2.proto import caffe2_pb2
 from collections import defaultdict
 from caffe2.python import scope, utils, workspace
 import caffe2.python._import_c_extension as C
+import pickle
 import numpy as np
 import sys
-
 
 # Mac os specific message
 if (sys.platform == 'darwin' and 'leveldb' in C.registered_dbs()):
@@ -71,26 +65,6 @@ def GlobalInit(args):
 
 def GetGlobalInitArgs():
     return _GLOBAL_INIT_ARGS[:]
-
-
-_WORKER_INIT_CALLS = []
-
-
-def worker_init_func(func):
-    """
-    By decorating a function with this, each call to the function will be
-    recorded at workflow time and replayed in each of the works at startup.
-    Used for example for registering caffe python operators.
-    """
-    def call(*args, **kwargs):
-        _WORKER_INIT_CALLS.append((func, args, kwargs))
-        return func(*args, **kwargs)
-
-    return call
-
-
-def GetWorkerInitCalls():
-    return _WORKER_INIT_CALLS[:]
 
 
 def IsOperator(op_type):
@@ -158,7 +132,12 @@ class BlobReference(object):
         Note that this does not prepends the namescope. If needed, use
         ScopedBlobReference() to prepend the existing namespace.
         """
-        self._name = name
+        if isinstance(name, string_types):
+            self._name = name
+        elif isinstance(name, binary_type):
+            self._name = name.decode('utf-8')
+        else:
+            self._name = str(name)
         self._from_net = net
         # meta allows helper functions to put whatever metainformation needed
         # there.
@@ -168,8 +147,10 @@ class BlobReference(object):
         return hash(self._name)
 
     def __eq__(self, other):
-        if isinstance(other, basestring):
+        if isinstance(other, string_types):
             return self._name == other
+        elif isinstance(other, binary_type):
+            return self._name == other.decode('utf-8')
         elif isinstance(other, BlobReference):
             return self._name == other._name
         else:
@@ -185,12 +166,12 @@ class BlobReference(object):
         return 'BlobReference("{}")'.format(self._name)
 
     def __add__(self, other):
-        if not isinstance(other, basestring):
+        if not isinstance(other, string_types):
             raise RuntimeError('Cannot add BlobReference to a non-string.')
         return BlobReference(self._name + other, self._from_net)
 
     def __radd__(self, other):
-        if not isinstance(other, basestring):
+        if not isinstance(other, string_types):
             raise RuntimeError('Cannot add a non-string to BlobReference.')
         return BlobReference(other + self._name, self._from_net)
 
@@ -205,7 +186,7 @@ class BlobReference(object):
         network's __getattr__ function.
         """
         inputs = [] if inputs is None else inputs
-        if isinstance(inputs, BlobReference) or isinstance(inputs, str):
+        if isinstance(inputs, BlobReference) or isinstance(inputs, string_types):
             inputs = [inputs]
         # add self to the input list.
         inputs.insert(0, self)
@@ -248,7 +229,7 @@ class BlobReference(object):
 
 def ScopedName(name):
     """prefix the name with the current scope."""
-    if isinstance(name, bytes):
+    if isinstance(name, binary_type):
         name = name.decode('ascii')
     return scope.CurrentNameScope() + name
 
@@ -262,7 +243,7 @@ def _RectifyInputOutput(blobs, net=None):
     """A helper function to rectify the input or output of the CreateOperator
     interface.
     """
-    if isinstance(blobs, basestring):
+    if isinstance(blobs, string_types):
         # If blobs is a single string, prepend scope.CurrentNameScope()
         # and put it as a list.
         # TODO(jiayq): enforce using BlobReference instead of raw strings.
@@ -274,7 +255,7 @@ def _RectifyInputOutput(blobs, net=None):
         # If blob is a list, we go through it and type check.
         rectified = []
         for blob in blobs:
-            if isinstance(blob, basestring):
+            if isinstance(blob, string_types) or isinstance(blob, binary_type):
                 rectified.append(ScopedBlobReference(blob, net=net))
             elif type(blob) is BlobReference:
                 rectified.append(blob)
@@ -312,11 +293,11 @@ def CreateOperator(
     # Add rectified inputs and outputs
     inputs = _RectifyInputOutput(inputs)
     outputs = _RectifyInputOutput(outputs)
-    operator.input.extend([str(i) for i in inputs])
-    operator.output.extend([str(o) for o in outputs])
+    operator.input.extend([text_type(i) for i in inputs])
+    operator.output.extend([text_type(o) for o in outputs])
     if control_input:
         control_input = _RectifyInputOutput(control_input)
-        operator.control_input.extend([str(i) for i in control_input])
+        operator.control_input.extend([text_type(i) for i in control_input])
     # Set device option:
     # (1) If device_option is explicitly set, use device_option.
     # (2) If not, but scope.CurrentDeviceScope() is set,
@@ -346,7 +327,7 @@ def CreateOperator(
 
 
 def _RegisterPythonImpl(
-    f, grad_f=None, python_func_type=None, pass_workspace=False, name=None,
+    f, grad_f=None, python_func_type=None, pass_workspace=False
 ):
     if python_func_type:
         func = python_func_type(f)
@@ -358,7 +339,7 @@ def _RegisterPythonImpl(
         if isinstance(grad_f, tuple):
             grad_f = grad_f[0](*grad_f[1], **grad_f[2])
 
-    token = C.register_python_op(f, pass_workspace, name or '')
+    token = C.register_python_op(f, pass_workspace, '')
     if grad_f:
         C.register_python_gradient_op(token, grad_f)
     return token
@@ -370,7 +351,6 @@ def CreatePythonOperator(
     grad_f=None,
     pass_workspace=False,
     python_func_type=None,
-    name=None,
     *args,
     **kwargs
 ):
@@ -383,7 +363,7 @@ def CreatePythonOperator(
     the workspace directly), use on your own risk.
     """
     kwargs["token"] = _RegisterPythonImpl(
-        f, grad_f, python_func_type, pass_workspace=pass_workspace, name=name
+        f, grad_f, python_func_type, pass_workspace=pass_workspace
     )
     return CreateOperator("Python", inputs, outputs, *args, **kwargs)
 
@@ -948,9 +928,13 @@ class IR(object):
         all_input_to_grad_out = {}
         for key, val in all_input_to_grad.items():
             if val is not None:
-                all_input_to_grad_out[BlobReference(key)] = (
-                    BlobReference(val) if isinstance(val, basestring) else
-                    GradientSlice(BlobReference(val[0]), BlobReference(val[1])))
+                if (isinstance(val, string_types) or
+                        isinstance(val, binary_type)):
+                    grad_out = BlobReference(val)
+                else:
+                    grad_out = GradientSlice(BlobReference(val[0]),
+                                             BlobReference(val[1]))
+                all_input_to_grad_out[BlobReference(key)] = grad_out
         return all_gradient_ops, all_input_to_grad_out
 
 
@@ -1015,14 +999,15 @@ class GradientRegistry(object):
             gradient_ops, g_input = cls._GetGradientForOpCC(op, g_output)
         except Exception as e:
             # Not supported in C++; will try python registration next.
-
-            try:
+            if op.type in cls.gradient_registry_:
                 gradient_ops, g_input = cls.gradient_registry_[op.type](
-                    op, g_output)
-            except KeyError:
+                    op, g_output
+                )
+            else:
                 raise Exception(
-                    "No gradient registered for {}. ".format(op.type) +
-                    "Exception from creating the gradient op: {}.".format(e))
+                    "Exception when creating the gradient for [{}]: {}.".
+                    format(op.type, e)
+                )
 
         if gradient_ops is None:
             return [], g_input
@@ -1208,16 +1193,18 @@ def _get_blob_ref(blob_name_or_ref):
 
 
 def _recover_record_by_prefix(names, prefix=''):
-        """
-        Tries to recover record by taking a subset of blob names with
-        a given prefix name and interpreting them as schema column names
-        """
-        from caffe2.python import schema
-        column_names = [name[len(prefix):] for name in names
-                        if name.startswith(prefix)]
-        return schema.from_column_list(
-            column_names,
-            col_blobs=[_get_blob_ref(prefix + name) for name in column_names])
+    """
+    Tries to recover record by taking a subset of blob names with
+    a given prefix name and interpreting them as schema column names
+    """
+    from caffe2.python import schema
+    column_names = [name[len(prefix):] for name in names
+                    if name.startswith(prefix)]
+    if not column_names:
+        return None
+    return schema.from_column_list(
+        column_names,
+        col_blobs=[_get_blob_ref(prefix + name) for name in column_names])
 
 
 class Net(object):
@@ -1571,6 +1558,13 @@ class Net(object):
         self._InvalidateLookupTables()
         return self._net
 
+    def PopulateProtoWithFileName(self):
+        net_tb = workspace.operator_tracebacks.get(self.Name(), None)
+        if net_tb is not None:
+            for idx, op in enumerate(self.Proto().op):
+                if idx in net_tb:
+                    op.name = ':'.join(map(str, net_tb[idx][0]))
+
     def NextScopedBlob(self, prefix='unnamed'):
         """Return the blob that has not been defined or registered in the
         current net. It returns `ScopedBlobReference(prefix)`, if it's valid,
@@ -1618,7 +1612,7 @@ class Net(object):
     def _ExtendOps(self, new_ops):
         self._net.op.extend(new_ops)
         for op in new_ops:
-            self._op_outputs.update([str(o) for o in op.output])
+            self._op_outputs.update([text_type(o) for o in op.output])
 
     def _CheckLookupTables(self):
         '''
@@ -1710,7 +1704,7 @@ class Net(object):
 
     def AddScopedExternalInputs(self, *inputs):
         res = self.AddExternalInput(
-            * [ScopedBlobReference(str(b)) for b in inputs]
+            * [ScopedBlobReference(b) for b in inputs]
         )
         if not isinstance(res, list):
             res = [res]
@@ -1718,7 +1712,7 @@ class Net(object):
 
     def AddScopedExternalOutputs(self, *outputs):
         return self.AddExternalOutput(
-            * [ScopedBlobReference(str(b)) for b in outputs]
+            * [ScopedBlobReference(b) for b in outputs]
         )
 
     @property
@@ -1748,8 +1742,9 @@ class Net(object):
         Tries to recover input record by taking a subset of external_inputs with
         a given prefix name and interpreting them as schema column names
         """
-        self.set_input_record(_recover_record_by_prefix(
-            self._net.external_input, prefix))
+        record = _recover_record_by_prefix(self._net.external_input, prefix)
+        if record:
+            self.set_input_record(record)
 
     def set_output_record(self, record):
         assert self._output_record is None, (
@@ -1765,8 +1760,9 @@ class Net(object):
         Tries to recover out record by taking a subset of external_outputs with
         a given prefix name and interpreting them as schema column names
         """
-        self.set_output_record(_recover_record_by_prefix(
-            self._net.external_output, prefix))
+        record = _recover_record_by_prefix(self._net.external_output, prefix)
+        if record:
+            self.set_output_record(record)
 
     def AppendOutputRecordField(self, field_name, record):
         from caffe2.python import schema
@@ -1841,19 +1837,23 @@ class Net(object):
         # 创建一个 Operator，函数的实现在本函数内
         op = CreateOperator(op_type, inputs, outputs, **kwargs)
         self._ExtendOps([op])
+
+        workspace.operator_tracebacks[self.Name()][
+            len(self._net.op) - 1] = _extract_stacktrace()
+
         if len(op.output) == 0:
             return
         elif len(op.output) == 1:
-            return BlobReference(str(op.output[0]), self)
+            return BlobReference(op.output[0], self)
         else:
-            return tuple(BlobReference(str(o), self) for o in op.output)
+            return tuple(BlobReference(o, self) for o in op.output)
 
     def __getattr__(self, op_type):
         # 先进行判定，是否有这个类型（在底层 C++ 代码中是否有对应的实现）
         if op_type.startswith('__'):
             raise AttributeError('Attribute {} not found.'.format(op_type))
         if not IsOperator(op_type) and not IsOperatorWithEngine(op_type, "CUDNN"):
-            raise RuntimeError(
+            raise AttributeError(
                 'Method ' + op_type + ' is not a registered operator.' +
                 ' Did you mean: [' +
                 ",".join(workspace.C.nearby_opnames(op_type)) + ']'
@@ -1919,28 +1919,38 @@ class Net(object):
         gradients.
         """
         assert(IsOperator('Python'))
-        if isinstance(f, tuple) or isinstance(grad_f, tuple):
-            # if we got a tuple, we will make sure this tuple will be
-            # registered to run at startup on each of the workers in a
-            # distributed run.
-            registry = worker_init_func(_RegisterPythonImpl)
-        else:
-            registry = _RegisterPythonImpl
 
-        token = registry(
-            f, grad_f, python_func_type, pass_workspace=pass_workspace,
-            name='%s:%d' % (str(self), len(self.Proto().op))
-        )
+        def make_builder(t):
+            if not isinstance(t, tuple):
+                return ''
+            assert len(t) == 3, 'Expected builder tuple (func, args, kwargs)'
+            func, args, kwargs = t
+            normalized = (func, tuple(args), dict(kwargs))
+            return pickle.dumps(normalized)
+
+        f_builder = make_builder(f)
+        grad_f_builder = make_builder(grad_f)
+
+        assert (not grad_f) or ((not f_builder) == (not grad_f_builder)), (
+            'A tuple has to be passed to both f and grad_f or neither.')
+
+        core_kwargs = {}
+        if f_builder:
+            core_kwargs['pickled_builder'] = f_builder
+            core_kwargs['pickled_grad_builder'] = grad_f_builder
+            core_kwargs['pass_workspace'] = pass_workspace
+        else:
+            core_kwargs['token'] = _RegisterPythonImpl(
+                f, grad_f, python_func_type, pass_workspace=pass_workspace)
+
         grad_output_indices = grad_output_indices or []
         grad_input_indices = grad_input_indices or []
         return lambda *args, **kwargs: self._CreateAndAddToSelf(
             'Python',
-            token=token,
             grad_output_indices=grad_output_indices,
             grad_input_indices=grad_input_indices,
             *args,
-            **kwargs
-        )
+            **dict(kwargs.items() + core_kwargs.items()))
 
     def is_external_input(self, blob):
         name = str(blob)
@@ -2226,6 +2236,14 @@ class ExecutionStep(object):
         self._assert_can_mutate()
         self._step.num_iter = num_iter
 
+    def SetCreateWorkspace(self, create_workspace):
+        self._assert_can_mutate()
+        self._step.create_workspace = create_workspace
+
+    def SetNumConcurrentInstances(self, num_concurrent_instances):
+        self._assert_can_mutate()
+        self._step.num_concurrent_instances = num_concurrent_instances
+
     def SetOnlyOnce(self, only_once):
         self._assert_can_mutate()
         self._step.only_once = only_once
@@ -2379,7 +2397,9 @@ def execution_step(default_name,
                    report_interval=None,
                    concurrent_substeps=None,
                    should_stop_blob=None,
-                   only_once=None):
+                   only_once=None,
+                   num_concurrent_instances=None,
+                   create_workspace=False):
     """
     Helper for creating an ExecutionStep.
     - steps_or_nets can be:
@@ -2411,6 +2431,10 @@ def execution_step(default_name,
     if report_net is not None:
         assert report_interval is not None
         step.SetReportNet(report_net, report_interval)
+    if num_concurrent_instances is not None:
+        step.SetNumConcurrentInstances(num_concurrent_instances)
+    if create_workspace:
+        step.SetCreateWorkspace(True)
 
     if isinstance(steps_or_nets, ExecutionStep):
         step.AddSubstep(steps_or_nets)
@@ -2433,3 +2457,31 @@ def scoped_execution_step(name, *args, **kwargs):
     """Same as execution_step() except that the step name is scoped."""
     default_name = ScopedName(name) if name else name
     return execution_step(default_name, *args, **kwargs)
+
+
+def _extract_stacktrace():
+    '''
+    This function extracts stacktrace without file system access
+    by purely using sys._getframe() and removes part that belongs to
+    this file (core.py). We are not using inspect module because
+    its just a wrapper on top of sys._getframe() whos
+    logis is based on accessing source files on disk - exactly what
+    we are trying to avoid here. Same stands for traceback module
+
+    The reason for file system access avoidance is that
+    if code is located on an NFS, file access might be slow
+
+    Function returns a list of tuples (file_name, line_number)
+    '''
+
+    current_file_name = __name__.replace('.', '/') + ".py"
+    result = []
+    frame = sys._getframe(1)
+    # We just go down the frame stack in a loop
+    while frame:
+        if current_file_name not in frame.f_code.co_filename:
+            # Its important to extract information from the frame here
+            # as frame's current line most probably will change later.
+            result.append((frame.f_code.co_filename, frame.f_lineno))
+        frame = frame.f_back
+    return result
