@@ -141,10 +141,12 @@ class OperatorBase {
   ObserverBase<OperatorBase>* observer_ = nullptr;
 
  private:
-  OperatorDef operator_def_;
+  OperatorDef operator_def_;    // 从 protobuf 中读取 ？？？
+  // 存储变量，这些变量是从 operator_def 中解析出来的
+  // arg_helper 在 OperatorBase 类的构造函数中初始化
   ArgumentHelper arg_helper_;
-  vector<const Blob*> inputs_;
-  vector<Blob*> outputs_;
+  vector<const Blob*> inputs_;  // 存储输入变量
+  vector<Blob*> outputs_;       // 存储输出变量
 
   DISABLE_COPY_AND_ASSIGN(OperatorBase);
 };
@@ -171,6 +173,7 @@ class OperatorBase {
 // you can now do
 //     auto& weight = Input(WEIGHT);
 // to make it more clear.
+// 上面的英文注释写的很清晰，就是采用 enum 的方式，对各个变量进行命名，增强程序的可读性
 #define INPUT_TAGS(first_input, ...)                                           \
   enum _InputTags { first_input = 0, __VA_ARGS__ }
 #define OUTPUT_TAGS(first_input, ...)                                          \
@@ -258,8 +261,9 @@ class Operator : public OperatorBase {
   USE_OPERATOR_BASE_FUNCTIONS;                            \
   /* using override */ using Operator<context>::context_; \
   /* using override */ using Operator<context>::Input;    \
-  /* using override */ using Operator<context>::Output;
+  /* using override */ using Operator<context>::Output
 
+// 这个宏，表示使用 OperatorBase 和 Operator 中的一系列函数，具体见上
 #define USE_OPERATOR_CONTEXT_FUNCTIONS USE_OPERATOR_FUNCTIONS(Context)
 
 #define USE_SIMPLE_CTOR_DTOR(name)                                             \
@@ -445,13 +449,23 @@ struct DeviceTypeRegisterer {
 // not depend on specific cuda or cudnn libraries. This means that we will be
 // able to compile it even when there is no cuda available - we simply do not
 // link any cuda or cudnn operators.
+// 在 registry.h 中，申明了两个类：一个是注册处（Registry）；一个是注册员（Registerer）
+// 这个地方申明了一个注册处 CPUOperatorRegistry，用来注册 CPU 相关的 Operators
+// CAFFE_DECLARE_REGISTRY 展开后的结果如下：
+// Registry<std::string, OperatorBase, const OperatorDef&, Workspace*>*
+//         CPUOperatorRegistry();
+// typedef Registerer<std::string, OperatorBase, const OperatorDef&, Workspace*>
+//         RegistererCPUOperatorRegistry;
+// 这个地方只是申明函数 CPUOperatorRegistry()，具体定义在 operator.cc 中
 CAFFE_DECLARE_REGISTRY(
     CPUOperatorRegistry,
     OperatorBase,
     const OperatorDef&,
     Workspace*);
+// 整个工程中好像没有使用这个宏 REGISTER_CPU_OPERATOR_CREATOR
 #define REGISTER_CPU_OPERATOR_CREATOR(key, ...) \
   CAFFE_REGISTER_CREATOR(CPUOperatorRegistry, key, __VA_ARGS__)
+// 下面的三个宏类似，针对不同的应用场合，采用不同的命名规则
 #define REGISTER_CPU_OPERATOR(name, ...) \
   CAFFE_REGISTER_CLASS(CPUOperatorRegistry, name, __VA_ARGS__)
 #define REGISTER_CPU_OPERATOR_STR(str_name, ...) \
@@ -460,6 +474,9 @@ CAFFE_DECLARE_REGISTRY(
 #define REGISTER_CPU_OPERATOR_WITH_ENGINE(name, engine, ...) \
   CAFFE_REGISTER_CLASS(CPUOperatorRegistry, name##_ENGINE_##engine, __VA_ARGS__)
 
+// 在 registry.h 中，申明了两个类：一个是注册处（Registry）；一个是注册员（Registerer）
+// 这个地方申明了一个注册处 CUDAOperatorRegistry，用来注册 CUDA 相关的 Operators
+// 具体分析可以参考上面的 CPUOperatorRegistry 类型的宏申明
 CAFFE_DECLARE_REGISTRY(
     CUDAOperatorRegistry,
     OperatorBase,

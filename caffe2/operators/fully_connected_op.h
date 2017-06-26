@@ -37,6 +37,8 @@ class FullyConnectedOp final : public Operator<Context> {
     const auto K = X.size_from_dim(canonical_axis);
     const int N = W.dim32(0);
 
+    // [&]：在 Lambda 表达式中，表示隐式捕获；捕获内容根据 Lambda 体中所使用的来自于
+    // 所在函数的实体变量
     auto dimErrorString = [&]() {
       return MakeString(
           "Dimension mismatch: ",

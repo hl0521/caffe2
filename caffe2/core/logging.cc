@@ -117,7 +117,8 @@ using fLB::FLAGS_logtostderr;
 
 #endif // CAFFE2_USE_GFLAGS
 
-CAFFE2_DEFINE_int(caffe2_log_level, google::ERROR,
+// TODO by HL:这个地方我修改了默认值（google::ERROR）
+CAFFE2_DEFINE_int(caffe2_log_level, google::INFO,
                   "The minimum log level that caffe2 will output.");
 
 // Google glog's api does not have an external function that allows one to check
@@ -138,6 +139,7 @@ bool InitCaffeLogging(int* argc, char** argv) {
     ::google::InitGoogleLogging(argv[0]);
     ::google::InstallFailureSignalHandler();
   }
+
   // If caffe2_log_level is set and is lower than the min log level by glog,
   // we will transfer the caffe2_log_level setting to glog to override that.
   FLAGS_minloglevel = std::min(FLAGS_caffe2_log_level, FLAGS_minloglevel);
@@ -218,6 +220,8 @@ MessageLogger::MessageLogger(const char *file, int line, int severity)
           //<< ":" << std::setw(2) << timeinfo->tm_sec
           //<< "." << std::setw(9) << ns.count() % 1000000000
           << " " << StripBasename(std::string(file)) << ":" << line << "] ";
+  // 下面是我加的，用于临时调试
+  stream_ << "FLAGS_caffe2_log_level: " << FLAGS_caffe2_log_level;
 }
 
 // Output the contents of the stream to the proper channel on destruction.

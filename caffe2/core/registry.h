@@ -30,10 +30,13 @@ namespace caffe2 {
 template <class SrcType, class ObjectType, class... Args>
 class Registry {
  public:
+  // Creator 类似于函数指针，它的输入参数是可变的(Args ...)，它的返回值是一个
+  // std::unique_ptr<ObjectType> 型的指针
   typedef std::function<std::unique_ptr<ObjectType> (Args ...)> Creator;
 
   Registry() : registry_() {}
 
+  // 将 key 对应的 creator 注册到 registry_ Map 中
   void Register(const SrcType& key, Creator creator) {
     // The if statement below is essentially the same as the following line:
     // CHECK_EQ(registry_.count(key), 0) << "Key " << key
@@ -56,6 +59,8 @@ class Registry {
 
   inline bool Has(const SrcType& key) { return (registry_.count(key) != 0); }
 
+  // 判断 registry_ 中 SrcType 对应的 Creator 是否存在，如果存在，则调用相应的
+  // Creator 函数；否则返回 nullptr
   unique_ptr<ObjectType> Create(const SrcType& key, Args ... args) {
     if (registry_.count(key) == 0) {
       // Returns nullptr if the key is not registered.
@@ -70,6 +75,7 @@ class Registry {
   vector<SrcType> Keys() {
     vector<SrcType> keys;
     for (const auto& it : registry_) {
+      // C++ 中，对于 map，first 表示 map 中的 key；second 表示 map 中的 value
       keys.push_back(it.first);
     }
     return keys;
@@ -84,11 +90,15 @@ class Registry {
     if (it == help_message_.end()) {
       return nullptr;
     }
+    // C++ 中，对于 map，first 表示 map 中的 key；second 表示 map 中的 value
     return it->second.c_str();
   }
 
  private:
+  // 申明一个名为 registry_ 的 Map，其索引 SrcType 通常为 String 类型。
+  // 该 Map 用来保存索引 SrcType 对应的 Creator （用来创建 ObjectType 的函数）
   CaffeMap<SrcType, Creator> registry_;
+  // 用来保存 SrcType 对应的 帮助信息
   CaffeMap<SrcType, string> help_message_;
   std::mutex register_mutex_;
 
@@ -98,10 +108,12 @@ class Registry {
 template <class SrcType, class ObjectType, class... Args>
 class Registerer {
  public:
+  // 构造函数中的 creator 是一个函数，用来创建某种特定类型的对象
   Registerer(const SrcType& key,
              Registry<SrcType, ObjectType, Args...>* registry,
              typename Registry<SrcType, ObjectType, Args...>::Creator creator,
              const string& help_msg="") {
+    // 注册 key 对应的 creator 和 相应的 help_msg 到 registry 中
     registry->Register(key, creator, help_msg);
   }
 
@@ -120,6 +132,10 @@ class Registerer {
  * str and ending with a number that varies with the line.
  * Pretty much a copy from 'folly/Preprocessor.h'
  */
+ // 返回一个以 str 开头的字符串，该字符串以 __LINE__ 或者 __COUNTER__ 结尾
+ // __LINE__    是 C 语言的内建宏，表示代码的行号
+ // __COUNTER__ 是一个计数器（不知道是内建宏，还是要自己实现），如果是自己实现，类似于
+ //             一个静态变量，每调用一次，计数加 1
 #define CAFFE_CONCATENATE_IMPL(s1, s2) s1##s2
 #define CAFFE_CONCATENATE(s1, s2) CAFFE_CONCATENATE_IMPL(s1, s2)
 #ifdef __COUNTER__
@@ -133,11 +149,24 @@ class Registerer {
  * declaration, as well as creating a convenient typename for its corresponding
  * registerer.
  */
+// 可变参数宏，将 ...（只能放在最后） 中的内容传递到 预留变量__VA_ARGS__ 中
+// ## 表示可变参数为 “空” 时，在调用宏时，可以省略 ... 前的 “,” ，否则可能会报错
+/* CAFFE_DECLARE_TYPED_REGISTRY：用来申明一个函数，返回某种类型的注册处（Registry），
+ * 但是没有具体实现，具体实现在宏 CAFFE_DEFINE_TYPED_REGISTRY 中
+ * e.g. 申明了一个名为 RegistryName 的函数 RegistryName()，该函数返回的是
+ *      Registry<SrcType, ObjectType, ##__VA_ARGS__>* 型的指针变量
+ *      同时采用 typedef 重定义了相应的注册员为RegistererRegistryName
+ */
 #define CAFFE_DECLARE_TYPED_REGISTRY(RegistryName, SrcType, ObjectType, ...) \
   Registry<SrcType, ObjectType, ##__VA_ARGS__>* RegistryName();              \
   typedef Registerer<SrcType, ObjectType, ##__VA_ARGS__>                     \
       Registerer##RegistryName;
 
+// 定义了宏 CAFFE_DECLARE_TYPED_REGISTRY 申明的函数 RegistryName() 的具体实现
+// 实现中定义了一个静态变量 registry ，用来存储某一种类型
+// 与 CAFFE_DECLARE_TYPED_REGISTRY 宏一起，实现了一类操作的集合（如所有CPU相关的
+// Operator 都保存在一个名为 CPUOperatorRegistry() 的函数的内部静态变量 registyr
+// 中），方便管理调用
 #define CAFFE_DEFINE_TYPED_REGISTRY(RegistryName, SrcType, ObjectType, ...) \
   Registry<SrcType, ObjectType, ##__VA_ARGS__>* RegistryName() {            \
     static Registry<SrcType, ObjectType, ##__VA_ARGS__>* registry =         \
@@ -147,6 +176,12 @@ class Registerer {
 
 // Note(Yangqing): The __VA_ARGS__ below allows one to specify a templated
 // creator with comma in its templated arguments.
+/* CAFFE_REGISTER_TYPED_CREATOR：该宏定义了一个静态 RegistererRegistryName 类型的
+ * 变量（RegistererRegistryName 在上面的宏 CAFFE_DECLARE_TYPED_REGISTRY 中申明，
+ * 它是 Registerer<SrcType, ObjectType, ##__VA_ARGS__> 型的注册员）
+ * 这个宏需要提供 Register 中的 creator 函数
+ * 而宏 CAFFE_REGISTER_TYPED_CLASS 采用的是默认的 creator 函数
+ */
 #define CAFFE_REGISTER_TYPED_CREATOR(RegistryName, key, ...)                  \
   namespace {                                                                 \
   static Registerer##RegistryName CAFFE_ANONYMOUS_VARIABLE(g_##RegistryName)( \
@@ -163,8 +198,9 @@ class Registerer {
   }
 
 // CAFFE_DECLARE_REGISTRY and CAFFE_DEFINE_REGISTRY are hard-wired to use string
-// as the key
-// type, because that is the most commonly used cases.
+// as the key type, because that is the most commonly used cases.
+// 此处固化采用 String 作为 Map 中的 key，也就是 Registry 类中的 SrcType 的类型为固
+// 化为 String 类型
 #define CAFFE_DECLARE_REGISTRY(RegistryName, ObjectType, ...) \
   CAFFE_DECLARE_TYPED_REGISTRY(                               \
       RegistryName, std::string, ObjectType, ##__VA_ARGS__)
@@ -174,8 +210,8 @@ class Registerer {
       RegistryName, std::string, ObjectType, ##__VA_ARGS__)
 
 // CAFFE_REGISTER_CREATOR and CAFFE_REGISTER_CLASS are hard-wired to use string
-// as the key
-// type, because that is the most commonly used cases.
+// as the key type, because that is the most commonly used cases.
+// 此处两个宏将 key 字符串化
 #define CAFFE_REGISTER_CREATOR(RegistryName, key, ...) \
   CAFFE_REGISTER_TYPED_CREATOR(RegistryName, #key, __VA_ARGS__)
 

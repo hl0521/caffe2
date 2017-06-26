@@ -170,6 +170,7 @@ endif()
 if(USE_OPENCV)
   # OpenCV 3
   find_package(OpenCV QUIET COMPONENTS core highgui imgproc imgcodecs)
+  message(STATUS "  OpenCV_FOUND:  ${OpenCV_FOUND}")
   if(NOT OpenCV_FOUND)
     # OpenCV 2
     find_package(OpenCV QUIET COMPONENTS core highgui imgproc)

@@ -213,8 +213,8 @@ class Blob {
     delete static_cast<T*>(pointer);
   }
   typedef void (*DestroyCall)(void *);
-  TypeMeta meta_;
-  void* pointer_ = nullptr;
+  TypeMeta meta_;             // 这个应该是用来保存数据的形状等信息的
+  void* pointer_ = nullptr;   // 这个应该是用来保存数据的
   DestroyCall destroy_ = nullptr;
 
   DISABLE_COPY_AND_ASSIGN(Blob);

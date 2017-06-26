@@ -2,7 +2,7 @@
 ##############################################################################
 # Example command to build the android target.
 ##############################################################################
-# 
+#
 # This script shows how one can build a Caffe2 binary for the Android platform
 # using android-cmake. A few notes:
 #
@@ -39,6 +39,7 @@ mkdir -p $BUILD_ROOT
 echo "Build Caffe2 Android into: $BUILD_ROOT"
 
 # Build protobuf from third_party so we have a host protoc binary.
+# 根据编译结果来看，目前 protoc 的编译是没有问题的
 echo "Building protoc"
 $CAFFE2_ROOT/scripts/build_host_protoc.sh || exit 1
 
@@ -64,5 +65,6 @@ cmake .. \
     -DUSE_OPENMP=OFF \
     -DBUILD_SHARED_LIBS=OFF \
     -DCMAKE_CXX_FLAGS_RELEASE=-s \
+    -DUSE_OPENCV=OFF \
     || exit 1
 make

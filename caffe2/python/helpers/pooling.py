@@ -1,3 +1,4 @@
+# -*- coding=utf-8 -*-
 ## @package pooling
 # Module caffe2.python.helpers.pooling
 ## @package fc
@@ -12,6 +13,8 @@ def max_pool(model, blob_in, blob_out, use_cudnn=False, order="NCHW", **kwargs):
     """Max pooling"""
     if use_cudnn:
         kwargs['engine'] = 'CUDNN'
+    # net 这个变量在 core.py 中，很明显，作为一个通用的框架，net 中并没有显式的定义
+    # MaxPool 这个 Operator，它是通过 core.Net.__getattr__ 来动态的创造
     return model.net.MaxPool(blob_in, blob_out, order=order, **kwargs)
 
 

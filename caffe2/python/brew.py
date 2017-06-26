@@ -1,3 +1,4 @@
+# -*- coding=utf-8 -*-
 ## @package model_helper_api
 # Module caffe2.python.model_helper_api
 from __future__ import absolute_import
@@ -18,6 +19,10 @@ except ImportError:
 from caffe2.python.model_helper import ModelHelper
 
 # flake8: noqa
+# 这个地方，将各种常用的操作符导入进来，方便后续通过 brew.XX 调用
+# 也就是说，在通过 brew.XX 添加名为 XX 的 operator 时，就会从下面这些 import 进来的
+# 内容中寻找。
+# 以后的例子，可以参考 pooling.py 中的 max_pool，其中有详细的注释
 from caffe2.python.helpers.dropout import *
 from caffe2.python.helpers.arg_scope import *
 from caffe2.python.helpers.fc import *

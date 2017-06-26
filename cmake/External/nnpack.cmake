@@ -2,7 +2,8 @@ if (__NNPACK_INCLUDED)
   return()
 endif()
 set(__NNPACK_INCLUDED TRUE)
- 
+
+# 判断是否使用 NNPACK
 if (NOT USE_NNPACK)
   return()
 endif()
@@ -16,13 +17,13 @@ if (NNPACK_FOUND)
 endif()
 
 ##############################################################################
-# Custom build rules to build nnpack, if external dependency is not found 
+# Custom build rules to build nnpack, if external dependency is not found
 ##############################################################################
-
+message(STATUS "  PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
 set(NNPACK_PREFIX ${PROJECT_SOURCE_DIR}/third_party/NNPACK)
 
 ##############################################################################
-# (1) MSVC - unsupported 
+# (1) MSVC - unsupported
 ##############################################################################
 
 if (MSVC)

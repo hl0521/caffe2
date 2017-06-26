@@ -167,7 +167,7 @@ class DAGNetBase : public NetBase {
   virtual bool RunAt(const std::vector<int>& chain) = 0;
 
   vector<internal::OperatorNode> operator_nodes_;
-  ExecutionChains execution_chains_;
+  ExecutionChains execution_chains_;    // 无序 Map
   vector<int> initial_frontier_;
   SimpleQueue<int> job_queue_;
   std::vector<std::thread> workers_;

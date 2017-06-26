@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 ## @package get_python_cmake_flags
 # Module scripts.get_python_cmake_flags
 ##############################################################################
@@ -40,4 +41,5 @@ if sys.platform == "darwin":
 if os.path.isfile(inc + '/Python.h'):
     flags += '-DPYTHON_INCLUDE_DIR={inc} '.format(inc=inc)
 
+# 我的 Ubuntu 最终打印内容为：-DPYTHON_INCLUDE_DIR=/home/long/anaconda2/include/python2.7
 print(flags, end='')

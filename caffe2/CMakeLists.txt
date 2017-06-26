@@ -14,28 +14,50 @@ set(Caffe2_GPU_TEST_SRCS)
 # ---[ Add respective subdirectories
 # Note: the folders that are being commented out have not been properly
 # addressed yet.
+# 包含根目录，用于查找头文件，否则在 Android 下会发生找不到头文件的错误
+# 在 PC 环境下，不会发生，不需要下面这句话，原因不明？？？
+include_directories(../)
 
+# 下面这1-15，将 caffe2 目录下的文件进行分类：分别 CPU 源文件；GPU源文件
+# CPU 测试文件和 GPU 测试文件
 add_subdirectory(proto)
+message(STATUS "  1-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 
 add_subdirectory(contrib)
+message(STATUS "  2-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(core)
+message(STATUS "  3-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(cuda_rtc)
+message(STATUS "  4-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(db)
+message(STATUS "  5-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(distributed)
 # add_subdirectory(experiments) # note, we may remove this folder at some point
+message(STATUS "  6-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(image)
+message(STATUS "  7-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(video)
+message(STATUS "  8-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(mkl)
+message(STATUS "  9-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(mpi)
+message(STATUS "  10-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(operators)
+message(STATUS "  11-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(python)
+message(STATUS "  12-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(queue)
+message(STATUS "  13-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(sgd)
 # add_subdirectory(test) # todo: use caffe2_gtest_main instead of gtest_main because we will need to call GlobalInit
+message(STATUS "  14-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 add_subdirectory(utils)
+message(STATUS "  15-Caffe2_CPU_SRCS:  ${Caffe2_CPU_SRCS}")
 
 # Advanced: if we have white list specified, we will do intersections for all
 # main lib srcs.
+# 这个地方做啥，暂时没有看懂？？？
+message(STATUS "  CAFFE2_WHITELISTED_FILES:  ${CAFFE2_WHITELISTED_FILES}")
 if (CAFFE2_WHITELISTED_FILES)
   caffe2_do_whitelist(Caffe2_CPU_SRCS CAFFE2_WHITELISTED_FILES)
   caffe2_do_whitelist(Caffe2_GPU_SRCS CAFFE2_WHITELISTED_FILES)
@@ -43,7 +65,8 @@ endif()
 
 # Debug messages - if you want to get a list of source files, enable the
 # following.
-if (FALSE)
+# true or false
+if (true)
   message(STATUS "CPU sources: ")
   foreach(tmp ${Caffe2_CPU_SRCS})
     message(STATUS "  " ${tmp})
@@ -72,23 +95,34 @@ endif()
 # As a result, we will create a Caffe2_MAIN_LIBS_ORDER variable simply to
 # enforce the dependency.
 set(Caffe2_MAIN_LIBS_ORDER ${Caffe2_MAIN_LIBS})
+message(STATUS "  Caffe2_MAIN_LIBS_ORDER:  ${Caffe2_MAIN_LIBS_ORDER}")
 
 # Compile exposed libraries.
+message(STATUS "  TARGET_OBJECTS:Caffe_PROTO: $<TARGET_OBJECTS:Caffe_PROTO>")
+message(STATUS "  TARGET_OBJECTS:Caffe2_PROTO: $<TARGET_OBJECTS:Caffe2_PROTO>")
+# 添加一个名为 Caffe2_CPU 的库文件，它根据 Caffe2_CPU 后列出的源文件来创建
+# 后面 尖括号 中是几个意思？？？没太看懂，上面的调试输出语句也是原样输出
 add_library(Caffe2_CPU ${Caffe2_CPU_SRCS} $<TARGET_OBJECTS:Caffe_PROTO> $<TARGET_OBJECTS:Caffe2_PROTO>)
+message(STATUS "  Caffe2_DEPENDENCY_LIBS:  ${Caffe2_DEPENDENCY_LIBS}")
 target_link_libraries(Caffe2_CPU ${Caffe2_DEPENDENCY_LIBS})
+message(STATUS "  CMAKE_INSTALL_PREFIX:  ${CMAKE_INSTALL_PREFIX}")
 install(TARGETS Caffe2_CPU DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+message(STATUS "  Caffe2_MAIN_LIBS_ORDER:  ${Caffe2_MAIN_LIBS_ORDER}")
 list(APPEND Caffe2_MAIN_LIBS_ORDER Caffe2_CPU)
+message(STATUS "  Caffe2_MAIN_LIBS_ORDER:  ${Caffe2_MAIN_LIBS_ORDER}")
 if (BUILD_SHARED_LIBS)
   list(APPEND Caffe2_MAIN_LIBS Caffe2_CPU)
 else()
   caffe_add_whole_archive_flag(Caffe2_CPU tmp)
   list(APPEND Caffe2_MAIN_LIBS ${tmp})
 endif()
+message(STATUS "  Caffe2_EXTERNAL_DEPENDENCIES:  ${Caffe2_EXTERNAL_DEPENDENCIES}")
 if (Caffe2_EXTERNAL_DEPENDENCIES)
   add_dependencies(Caffe2_CPU ${Caffe2_EXTERNAL_DEPENDENCIES})
 endif()
 
 # Write the macros file.
+message(STATUS "  PROJECT_BINARY_DIR:  ${PROJECT_BINARY_DIR}")
 file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/caffe2/core)
 file(WRITE ${PROJECT_BINARY_DIR}/caffe2/core/macros.h
      "// Automatically generated header file for caffe2 macros. These \n"
@@ -97,6 +131,7 @@ file(WRITE ${PROJECT_BINARY_DIR}/caffe2/core/macros.h
      "// for your program to link correctly.\n\n"
      "#pragma once\n\n")
 get_directory_property(tmp DIRECTORY ${PROJECT_SOURCE_DIR} COMPILE_DEFINITIONS)
+message(STATUS "  tmp:  ${tmp}")
 foreach(item ${tmp})
   if (${item} MATCHES "CAFFE2.*")
     file(APPEND ${PROJECT_BINARY_DIR}/caffe2/core/macros.h
@@ -105,6 +140,8 @@ foreach(item ${tmp})
 endforeach()
 
 # Installing the header files
+message(STATUS "  CMAKE_CURRENT_LIST_DIR:  ${CMAKE_CURRENT_LIST_DIR}")
+message(STATUS "  CMAKE_INSTALL_PREFIX:  ${CMAKE_INSTALL_PREFIX}")
 install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
         DESTINATION ${CMAKE_INSTALL_PREFIX}/include/
         FILES_MATCHING PATTERN "*.h")
@@ -131,6 +168,7 @@ if(USE_CUDA)
 endif()
 
 # ---[ Test binaries.
+message(STATUS "  BUILD_TEST:  ${BUILD_TEST}")
 if (BUILD_TEST)
   set(Caffe2_ALL_TEST_SRCS ${Caffe2_CPU_TEST_SRCS})
   if (USE_CUDA)
@@ -265,4 +303,3 @@ endif()
 if (BUILD_BINARY)
   add_subdirectory(binaries)
 endif()
-

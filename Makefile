@@ -1,5 +1,7 @@
 # This makefile does nothing but delegating the actual building to cmake.
 
+# $(shell python ./scripts/get_python_cmake_flags.py) 输出的是 Python2.7 的头文件目录
+# 我的 Ubuntu 输出为 -DPYTHON_INCLUDE_DIR=/home/long/anaconda2/include/python2.7
 all:
 	@mkdir -p build && cd build && cmake .. $(shell python ./scripts/get_python_cmake_flags.py) && $(MAKE)
 

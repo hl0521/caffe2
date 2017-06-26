@@ -1,3 +1,4 @@
+# -*- coding=utf-8 -*-
 ## @package model_helper
 # Module caffe2.python.model_helper
 from __future__ import absolute_import
@@ -437,6 +438,7 @@ class ModelHelper(object):
 
             logging.warning("You are creating an op that the ModelHelper "
                             "does not recognize: {}.".format(op_type))
+        # net 在 core.py 中
         return self.net.__getattr__(op_type)
 
     def __dir__(self):

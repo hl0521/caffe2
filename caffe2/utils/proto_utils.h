@@ -163,6 +163,7 @@ inline bool HasArgument(const OperatorDef& def, const string& name) {
   return false;
 }
 
+// 一个用来在 operator 中辅助索引变量的类
 /**
  * @brief A helper class to index into arguments.
  *
@@ -213,7 +214,7 @@ class ArgumentHelper {
   }
 
  private:
-  CaffeMap<string, const Argument*> arg_map_;
+  CaffeMap<string, const Argument*> arg_map_;   // 用来存储 operator 中使用到的变量
 };
 
 const Argument& GetArgument(const OperatorDef& def, const string& name);

@@ -16,6 +16,7 @@ BUILD_ROOT=$CAFFE2_ROOT/build_host_protoc
 mkdir -p $BUILD_ROOT/build
 
 cd $BUILD_ROOT/build
+# CMAKE = cmake 指令的位置
 CMAKE=$(which cmake || which /usr/bin/cmake || which /usr/local/bin/cmake)
 
 SHARED="$CAFFE2_ROOT/third_party/protobuf/cmake -DCMAKE_INSTALL_PREFIX=$BUILD_ROOT -Dprotobuf_BUILD_TESTS=OFF "

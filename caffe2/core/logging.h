@@ -128,6 +128,7 @@ class EnforceNotMet : public std::exception {
   const void* caller_;
 };
 
+// 如果 condition 为假，则抛出异常报错；如果 condition 为真，直接返回
 #define CAFFE_ENFORCE(condition, ...)                                         \
   do {                                                                        \
     if (!(condition)) {                                                       \
@@ -253,7 +254,7 @@ BINARY_COMP_HELPER(LessEquals, <=)
     }                                                                 \
   } while (false)
 
-#define CAFFE_ENFORCE_THAT_IMPL_WITH_CALLER(condition, expr, ...)                 \
+#define CAFFE_ENFORCE_THAT_IMPL_WITH_CALLER(condition, expr, ...)     \
   do {                                                                \
     using namespace ::caffe2::enforce_detail;                         \
     const EnforceFailMessage& r = (condition);                        \

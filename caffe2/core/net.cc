@@ -85,6 +85,7 @@ SimpleNet::SimpleNet(const NetDef& net_def, Workspace* ws)
       // operator def.
       OperatorDef temp_def(operator_def);
       temp_def.mutable_device_option()->CopyFrom(net_def.device_option());
+      // emplace_back 将一个新的元素放在 vector 的末尾
       operators_.emplace_back(CreateOperator(temp_def, ws));
     } else {
       operators_.emplace_back(CreateOperator(operator_def, ws));

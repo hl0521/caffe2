@@ -16,6 +16,11 @@
  *
  * In both cases, you can then access the flag via caffe2::FLAGS_foo.
  */
+ // flags.h 是一个可移植的命令行标志工具，用户也可以选择使用 Google 的开源的处理命令
+ // 行参数的库 gflags；
+ // 如果 gflags 不可用，也可以使用一个轻量级的自定义的实现版本。
+ // 如果要使用 gflags，则需要定义宏 CAFFE2_USE_GFLAGS
+ // 使用方法见上述英文描述
 
 #ifndef CAFFE2_CORE_FLAGS_H_
 #define CAFFE2_CORE_FLAGS_H_
@@ -37,13 +42,13 @@ const char* UsageMessage();
  * Parses the commandline flags.
  *
  * This command parses all the commandline arguments passed in via pargc
- * and argv. Once it is finished, partc and argv will contain the remaining
+ * and pargv. Once it is finished, partc and argv will contain the remaining
  * commandline args that caffe2 does not deal with. Note that following
- * convention, argv[0] contains the binary name and is not parsed.
+ * convention, pargv[0] contains the binary name and is not parsed.
  */
 bool ParseCaffeCommandLineFlags(int* pargc, char*** pargv);
 /**
- * Checks if the commandline flags has already been passed.
+ * Checks if the commandline flags has already been parsed.
  */
 bool CommandLineFlagsHasBeenParsed();
 
@@ -64,6 +69,8 @@ bool CommandLineFlagsHasBeenParsed();
 namespace gflags = google;
 #endif  // GFLAGS_GFLAGS_H_
 
+// DEFINE_type：“type” 是某种数据类型，如 int32、int64 等，DEFINE_type 是 gflags 中
+// 定义的宏
 #define CAFFE2_GFLAGS_DEF_WRAPPER(type, name, default_value, help_str)         \
   DEFINE_##type(name, default_value, help_str);                                \
   namespace caffe2 {                                                           \
@@ -73,7 +80,7 @@ namespace gflags = google;
 #define CAFFE2_DEFINE_int(name, default_value, help_str)                       \
   CAFFE2_GFLAGS_DEF_WRAPPER(int32, name, default_value, help_str)
 #define CAFFE2_DEFINE_int64(name, default_value, help_str)                     \
-  CAFFE2_GFLAGS_DEF_WRAPPER(int64, name, default_value, help_str)              
+  CAFFE2_GFLAGS_DEF_WRAPPER(int64, name, default_value, help_str)
 #define CAFFE2_DEFINE_double(name, default_value, help_str)                    \
   CAFFE2_GFLAGS_DEF_WRAPPER(double, name, default_value, help_str)
 #define CAFFE2_DEFINE_bool(name, default_value, help_str)                      \
@@ -82,6 +89,7 @@ namespace gflags = google;
   CAFFE2_GFLAGS_DEF_WRAPPER(string, name, default_value, help_str)
 
 // DECLARE_typed_var should be used in header files and in the global namespace.
+// 声明变量，放在头文件中使用
 #define CAFFE2_GFLAGS_DECLARE_WRAPPER(type, name)                             \
   DECLARE_##type(name);                                                       \
   namespace caffe2 {                                                          \

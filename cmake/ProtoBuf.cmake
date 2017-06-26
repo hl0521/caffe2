@@ -39,11 +39,14 @@ elseif (ANDROID OR IOS)
       EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
 else()
   find_package( Protobuf )
+  message(STATUS "  Protobuf_FOUND:  ${Protobuf_FOUND}")
+  message(STATUS "  PROTOBUF_FOUND:  ${PROTOBUF_FOUND}")
   if ( NOT (Protobuf_FOUND OR PROTOBUF_FOUND) )
     custom_protobuf_find()
   else()
     # Adding PROTOBUF_LIBRARY for legacy support.
     list(APPEND Caffe2_DEPENDENCY_LIBS ${PROTOBUF_LIBRARIES} ${PROTOBUF_LIBRARY})
+    # SYSTEM 告诉编译器该路径是某种平台上的系统包含路径
     include_directories(SYSTEM ${PROTOBUF_INCLUDE_DIR})
   endif()
 endif()
@@ -62,9 +65,15 @@ function(caffe2_protobuf_generate_cpp_py srcs_var hdrs_var python_var)
     return()
   endif()
 
+  message(STATUS "  srcs_var:  ${srcs_var}")
+  # set(var value) 如果没有设置值，那就是撤消 var 变量
+  # 注意，下面撤消的是 ${srcs_var}，而不是 srcs_var
+  # 这个地方的撤消变量，是不是类似于先将变量 清 0？？？
   set(${srcs_var})
+  message(STATUS "  srcs_var:  ${srcs_var}")
   set(${hdrs_var})
   set(${python_var})
+  message(STATUS "  CMAKE_CURRENT_BINARY_DIR:  ${CMAKE_CURRENT_BINARY_DIR}")
   foreach(fil ${ARGN})
     get_filename_component(abs_fil ${fil} ABSOLUTE)
     get_filename_component(fil_we ${fil} NAME_WE)
@@ -84,6 +93,9 @@ function(caffe2_protobuf_generate_cpp_py srcs_var hdrs_var python_var)
       DEPENDS ${abs_fil}
       COMMENT "Running C++/Python protocol buffer compiler on ${fil}" VERBATIM )
   endforeach()
+
+  message(STATUS "  CMAKE_COMMAND:  ${CMAKE_COMMAND}")
+  message(STATUS "  PROTOBUF_PROTOC_EXECUTABLE:  ${PROTOBUF_PROTOC_EXECUTABLE}")
 
   set_source_files_properties(${${srcs_var}} ${${hdrs_var}} ${${python_var}} PROPERTIES GENERATED TRUE)
   set(${srcs_var} ${${srcs_var}} PARENT_SCOPE)

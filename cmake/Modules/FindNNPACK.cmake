@@ -9,10 +9,13 @@
 #  NNPACK_LIBRARIES
 #  NNPACK_LIBRARYRARY_DIRS
 
+# FindPackageHandleStandardArgs.cmake 文件在 /usr/share/cmake-2.8/Modules/ 文件夹下
+# 里面定义了许多函数，具体参数该文件
 include(FindPackageHandleStandardArgs)
 
 set(NNPACK_ROOT_DIR "" CACHE PATH "Folder contains NNPACK")
 
+message(STATUS "  NNPACK_ROOT_DIR:     ${NNPACK_ROOT_DIR}")
 find_path(NNPACK_INCLUDE_DIR nnpack.h
     PATHS ${NNPACK_ROOT_DIR}
     PATH_SUFFIXES include)
@@ -20,6 +23,9 @@ find_path(NNPACK_INCLUDE_DIR nnpack.h
 find_library(NNPACK_LIBRARY nnpack
     PATHS ${NNPACK_ROOT_DIR}
     PATH_SUFFIXES lib lib64)
+
+message(STATUS "  NNPACK_LIBRARY:      ${NNPACK_LIBRARY}")
+message(STATUS "  NNPACK_INCLUDE_DIR:  ${NNPACK_INCLUDE_DIR}")
 
 find_package_handle_standard_args(NNPACK DEFAULT_MSG NNPACK_INCLUDE_DIR NNPACK_LIBRARY)
 

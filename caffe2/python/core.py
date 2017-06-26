@@ -1,3 +1,4 @@
+# -*- coding=utf-8 -*-
 ## @package core
 # Module caffe2.python.core
 from __future__ import absolute_import
@@ -303,6 +304,7 @@ def CreateOperator(
     """A function wrapper that allows one to create operators based on the
     operator type. The type should be a string corresponding to an operator
     registered with Caffe2.
+    相当于将一个将一个 Operator 序列化，传递给底层的 C++ 代码
     """
     operator = caffe2_pb2.OperatorDef()
     operator.type = operator_type
@@ -1836,6 +1838,7 @@ class Net(object):
                 self.NextName(prefix=op_type, output_id=i)
                 for i in range(outputs)]
         outputs = _RectifyInputOutput(outputs, net=self)
+        # 创建一个 Operator，函数的实现在本函数内
         op = CreateOperator(op_type, inputs, outputs, **kwargs)
         self._ExtendOps([op])
         if len(op.output) == 0:
@@ -1846,6 +1849,7 @@ class Net(object):
             return tuple(BlobReference(str(o), self) for o in op.output)
 
     def __getattr__(self, op_type):
+        # 先进行判定，是否有这个类型（在底层 C++ 代码中是否有对应的实现）
         if op_type.startswith('__'):
             raise AttributeError('Attribute {} not found.'.format(op_type))
         if not IsOperator(op_type) and not IsOperatorWithEngine(op_type, "CUDNN"):
@@ -1854,6 +1858,8 @@ class Net(object):
                 ' Did you mean: [' +
                 ",".join(workspace.C.nearby_opnames(op_type)) + ']'
             )
+        # 采用一个 lambda 表达式，在 Net 对象中动态的创建 op_type 类型的 Operator
+        # python 中，lambda 表达式，冒号（:）表示参数，冒号后面的表示函数体
         return lambda *args, **kwargs: self._CreateAndAddToSelf(
             op_type, *args, **kwargs)
 

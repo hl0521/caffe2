@@ -10,6 +10,7 @@
 
 namespace caffe2 {
 
+// 以下的 using，相当于 typedef；如用 BoolTypes 表示 TensorTypes<bool> 型变量
 using NumericTypes = TensorTypes<int32_t, int64_t, float, double>;
 using IntTypes = TensorTypes<int32_t, int64_t>;
 using BoolTypes = TensorTypes<bool>;
